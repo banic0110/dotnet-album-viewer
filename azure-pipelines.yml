@@ -4,14 +4,18 @@ trigger:
       - main
 
 pool:
-  name: Default  # Asegúrate de que este sea tu agente local
+  name: Default  # Tu agente autoservido local
 
 variables:
-  dockerImage: ic0110/infosyp-prueba
+  dockerImage: isaiascruz/album-viewer
   dockerTag: latest
   dockerfilePath: docker/app/Dockerfile
   buildContext: .
   k8sYamlPath: environment/
+  sonarProjectKey: dotnet-album-viewer
+  sonarProjectName: AlbumViewer
+  sonarHostUrl: 'http://localhost:9000'
+  sonarToken: '$(SONARQUBE_TOKEN)'  # Asegúrate de configurarlo como variable secreta
 
 stages:
 
@@ -22,18 +26,31 @@ stages:
   displayName: "SonarQube Analysis"
   jobs:
     - job: Analysis
+      displayName: "Run SonarQube analysis"
       steps:
         - checkout: self
 
-        - script: |
-            echo "Simulando análisis fallido"
-            exit 1
-          displayName: "Simulación de análisis fallido"
-          condition: false  # Deshabilitado, solo ilustrativo
+        - task: SonarQubePrepare@5
+          displayName: "Prepare SonarQube"
+          inputs:
+            SonarQube: 'SonarQube_Local'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
+            scannerMode: 'MSBuild'
+            projectKey: $(sonarProjectKey)
+            projectName: $(sonarProjectName)
 
         - script: |
-            echo "Análisis exitoso"
-          displayName: "Análisis exitoso"
+            dotnet restore src/AlbumViewerNetCore/AlbumViewerNetCore.csproj
+            dotnet build src/AlbumViewerNetCore/AlbumViewerNetCore.csproj --no-restore
+          displayName: "Restore & Build"
+
+        - task: SonarQubeAnalyze@5
+          displayName: "Run SonarQube Analysis"
+
+        - task: SonarQubePublish@5
+          displayName: "Publish SonarQube Results"
+          inputs:
+            pollingTimeoutSec: '300'
+
 # ========================
 # 2. BUILD & PUSH
 # ========================
@@ -65,14 +82,14 @@ stages:
 # ========================
 - stage: CustomScripts
   dependsOn: Docker
-  displayName: "Run Bash Scripts"
+  displayName: "Run CMD Scripts"
   jobs:
     - job: HelloWorld
       displayName: "Hola Mundo 10 veces"
       strategy:
         parallel: 10
       steps:
-        - script: echo "Hola Mundo"
+        - script: echo Hola Mundo desde job %AGENT_JOBNAME%
           displayName: "Hola Mundo"
 
     - job: CreateFiles
@@ -80,10 +97,10 @@ stages:
       steps:
         - script: |
             mkdir output
-            for i in {1..10}; do
-              date +"%Y-%m-%d %T" > output/fecha_$i.txt
-            done
-            cat output/*
+            for /L %%i in (1,1,10) do (
+              echo %DATE% %TIME% > output\fecha_%%i.txt
+            )
+            type output\*.txt
           displayName: "Generar y mostrar archivos con fecha"
 
 # ========================
