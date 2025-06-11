@@ -7,7 +7,7 @@ pool:
   name: Default  # Tu agente autoservido local
 
 variables:
-  dockerImage: isaiascruz/album-viewer
+  dockerImage: isaiascruz/infosyp-prueba
   dockerTag: latest
   dockerfilePath: docker/app/Dockerfile
   buildContext: .
