@@ -87,7 +87,7 @@ stages:
     - job: HelloWorld
       displayName: "Hola Mundo 10 veces"
       strategy:
-        parallel: 10
+        parallel: 1
       steps:
         - script: echo Hola Mundo desde job %AGENT_JOBNAME%
           displayName: "Hola Mundo"
@@ -97,7 +97,7 @@ stages:
       steps:
         - script: |
             mkdir output
-            for /L %%i in (1,1,10) do (
+            for /L %%i in (1,1,1) do (
               echo %DATE% %TIME% > output\fecha_%%i.txt
             )
             type output\*.txt
