@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: album-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: album-viewer
+  template:
+    metadata:
+      labels:
+        app: album-viewer
+    spec:
+      containers:
+        - name: album-viewer
+          image: isaiascruz/album-viewer:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: Data__Provider
+              value: "MySQL"
+            - name: Data__ConnectionString
+              value: "Server=album-db;Port=3306;Database=AlbumViewer;User=root;SslMode=None"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: album-viewer-service
+spec:
+  selector:
+    app: album-viewer
+  ports:
+    - port: 80
+      targetPort: 80

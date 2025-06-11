@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: album-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: album-db
+  template:
+    metadata:
+      labels:
+        app: album-db
+    spec:
+      containers:
+        - name: album-db
+          image: dockersamples/tidb:nanoserver-1809
+          ports:
+            - containerPort: 4000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: album-db
+spec:
+  selector:
+    app: album-db
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 4000

@@ -1,0 +1,101 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  name: Default  # Asegúrate de que este sea tu agente local
+
+variables:
+  dockerImage: isaiascruz/album-viewer
+  dockerTag: latest
+  dockerfilePath: docker/app/Dockerfile
+  buildContext: .
+  k8sYamlPath: environment/
+
+stages:
+
+# ========================
+# 1. SONARQUBE ANALYSIS
+# ========================
+- stage: SonarQube
+  displayName: "SonarQube Analysis"
+  jobs:
+    - job: Analysis
+      steps:
+        - checkout: self
+
+        - script: |
+            echo "Simulando análisis fallido"
+            exit 1
+          displayName: "Simulación de análisis fallido"
+          condition: false  # Deshabilitado, solo ilustrativo
+
+        - script: |
+            echo "Análisis exitoso"
+          displayName: "Análisis exitoso"
+# ========================
+# 2. BUILD & PUSH
+# ========================
+- stage: Docker
+  dependsOn: SonarQube
+  condition: succeeded()
+  displayName: "Docker Build & Push"
+  jobs:
+    - job: BuildPush
+      steps:
+        - task: Docker@2
+          displayName: "Build Docker Image"
+          inputs:
+            command: build
+            Dockerfile: $(dockerfilePath)
+            tags: $(dockerTag)
+            repository: $(dockerImage)
+            buildContext: $(buildContext)
+
+        - task: Docker@2
+          displayName: "Push to DockerHub"
+          inputs:
+            command: push
+            tags: $(dockerTag)
+            repository: $(dockerImage)
+
+# ========================
+# 3. CUSTOM SCRIPTS
+# ========================
+- stage: CustomScripts
+  dependsOn: Docker
+  displayName: "Run Bash Scripts"
+  jobs:
+    - job: HelloWorld
+      displayName: "Hola Mundo 10 veces"
+      strategy:
+        parallel: 10
+      steps:
+        - script: echo "Hola Mundo desde job ${{ counter(variables['System.JobName'], 1) }}"
+          displayName: "Hola Mundo"
+
+    - job: CreateFiles
+      displayName: "Crear y mostrar archivos"
+      steps:
+        - script: |
+            mkdir output
+            for i in {1..10}; do
+              date +"%Y-%m-%d %T" > output/fecha_$i.txt
+            done
+            cat output/*
+          displayName: "Generar y mostrar archivos con fecha"
+
+# ========================
+# 4. K8S DEPLOY
+# ========================
+- stage: DeployK8s
+  dependsOn: CustomScripts
+  displayName: "Deploy to Minikube"
+  jobs:
+    - job: ApplyK8s
+      steps:
+        - script: |
+            kubectl apply -f $(k8sYamlPath)
+            kubectl get pods -o wide
+          displayName: "Apply K8s manifests"

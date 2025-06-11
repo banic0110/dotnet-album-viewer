@@ -1,0 +1,6 @@
+projectKey=albumviewer
+serverUrl=http://localhost:9000
+serverVersion=25.6.0.109173
+dashboardUrl=http://localhost:9000/dashboard?id=albumviewer
+ceTaskId=79edaaf8-5f43-45bf-ae55-ff70873b198d
+ceTaskUrl=http://localhost:9000/api/ce/task?id=79edaaf8-5f43-45bf-ae55-ff70873b198d
