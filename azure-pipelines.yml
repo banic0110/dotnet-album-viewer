@@ -72,7 +72,7 @@ stages:
       strategy:
         parallel: 10
       steps:
-        - script: echo "Hola Mundo desde job ${{ counter(variables['System.JobName'], 1) }}"
+        - script: echo "Hola Mundo"
           displayName: "Hola Mundo"
 
     - job: CreateFiles
