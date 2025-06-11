@@ -7,7 +7,7 @@ pool:
   name: Default  # Tu agente autoservido local
 
 variables:
-  dockerImage: isaiascruz/infosyp-prueba
+  dockerImage: ic0110/infosyp-prueba
   dockerTag: latest
   dockerfilePath: docker/app/Dockerfile
   buildContext: .
