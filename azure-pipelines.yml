@@ -33,7 +33,7 @@ stages:
         - task: SonarQubePrepare@5
           displayName: "Prepare SonarQube"
           inputs:
-            SonarQube: 'SonarQube_Local'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
+            SonarQube: 'Local Agent SonarQube'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
             scannerMode: 'MSBuild'
             projectKey: $(sonarProjectKey)
             projectName: $(sonarProjectName)
