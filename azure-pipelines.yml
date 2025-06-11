@@ -7,7 +7,7 @@ pool:
   name: Default  # Asegúrate de que este sea tu agente local
 
 variables:
-  dockerImage: isaiascruz/album-viewer
+  dockerImage: ic0110/infosyp-prueba
   dockerTag: latest
   dockerfilePath: docker/app/Dockerfile
   buildContext: .
