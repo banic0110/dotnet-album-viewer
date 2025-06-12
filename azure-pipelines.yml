@@ -116,3 +116,20 @@ stages:
             kubectl apply -f $(k8sYamlPath)
             kubectl get pods -o wide
           displayName: "Apply K8s manifests"
+        
+        - script: |
+            echo "Waiting for DB pod to be ready..."
+            kubectl wait --for=condition=ready pod -l app=album-db --timeout=60s
+          displayName: "Wait for DB readiness"
+
+        - script: |
+            echo "Forwarding MySQL port..."
+            kubectl port-forward svc/album-db 3306:3306 &
+            sleep 5  # Esperar a que se abra el túnel
+
+            echo "Creating database if not exists..."
+            mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS AlbumViewer;"
+
+            echo "Importing AlbumViewerSqlServerData.sql..."
+            mysql -h 127.0.0.1 -P 3306 -u root AlbumViewer < AlbumViewerSqlServerData.sql
+          displayName: "Initialize MySQL with data"
