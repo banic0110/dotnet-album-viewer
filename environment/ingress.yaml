@@ -3,17 +3,26 @@ kind: Ingress
 metadata:
   name: album-viewer-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # Usar regex para manejar rutas específicas
     nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   rules:
-  - host: albumviewer.local
-    http:
-      paths:
-      - path: /album-viewer(/|$)(.*)
-        pathType: ImplementationSpecific
-        backend:
-          service:
-            name: album-viewer-service
-            port:
-              number: 80
+    - host: albumviewer.local
+      http:
+        paths:
+          # Primero: archivos estáticos (extensiones específicas)
+          - path: /.*\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|map)$
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: album-viewer-service
+                port:
+                  number: 80
+          # Segundo: todas las demás rutas van al index.html
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: album-viewer-service
+                port:
+                  number: 80
