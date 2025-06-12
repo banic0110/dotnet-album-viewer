@@ -122,15 +122,8 @@ stages:
             kubectl wait --for=condition=ready pod -l app=album-db --timeout=60s
           displayName: "Wait for DB readiness"
 
-        - powershell: |
-            Write-Host "Iniciando port-forward..."
-            Start-Process -NoNewWindow -FilePath "kubectl" -ArgumentList "port-forward svc/album-db 3306:3306"
-            Start-Sleep -Seconds 10
-
-            Write-Host "Inicializando base de datos..."
-
-            $sqlContent = Get-Content -Raw -Path "AlbumViewerSqlServerData.sql"
-            $command = "mysql -h 127.0.0.1 -P 3306 -u root --password=root AlbumViewer -e `"$sqlContent`""
-            Write-Host "Ejecutando: $command"
-            Invoke-Expression $command
-          displayName: "Initialize MySQL with data"
+        - script: |
+            POD_NAME=$(kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}")
+            kubectl cp AlbumViewerSqlServerData.sql $POD_NAME:/tmp/data.sql
+            kubectl exec -i $POD_NAME -- sh -c "mysql -u root --password=root AlbumViewer < /tmp/data.sql"
+          displayName: "Load SQL inside pod"
