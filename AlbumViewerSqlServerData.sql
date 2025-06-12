@@ -1,4 +1,7 @@
 
+DROP DATABASE IF EXISTS AlbumViewer;
+CREATE DATABASE AlbumViewer;
+USE AlbumViewer;
 CREATE TABLE `Albums` (
   `Id` int NOT NULL AUTO_INCREMENT,
   `ArtistId` int DEFAULT NULL,
