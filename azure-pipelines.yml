@@ -67,7 +67,7 @@ stages:
         - task: NodeTool@0
           inputs:
             versionSpec: '14.x'
-          displayName: "Use Node.js 14 (compatible con node-sass 4.x)"
+          displayName: "Use Node.js 14"
 
         - script: |
             cd src/AlbumViewerAngular
@@ -75,11 +75,6 @@ stages:
             npm run build:prod
           displayName: "Build Angular App"
 
-        - script: |
-            rmdir /s /q src\AlbumViewerNetCore\wwwroot
-            mkdir src\AlbumViewerNetCore\wwwroot
-            xcopy /s /e /q src\AlbumViewerAngular\dist\album-viewer src\AlbumViewerNetCore\wwwroot\
-          displayName: "Copy dist to wwwroot"
     - job: BuildPush
       dependsOn: BuildFrontend
       steps:
