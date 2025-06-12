@@ -99,5 +99,8 @@ stages:
         - powershell: |
             $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
             Write-Host "Pod name: $POD_NAME"
-            kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer < AlbumViewerSqlServerData.sql
+            Write-Host "Testing MySQL connection..."
+            kubectl exec $POD_NAME -- mysql -u root -proot -e "SHOW DATABASES;"
+            Write-Host "Loading SQL data..."
+            Get-Content AlbumViewerSqlServerData.sql | kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer
           displayName: "Load SQL inside pod - PowerShell"
