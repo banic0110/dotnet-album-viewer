@@ -122,11 +122,15 @@ stages:
             kubectl wait --for=condition=ready pod -l app=album-db --timeout=60s
           displayName: "Wait for DB readiness"
 
-        - script: |
-            echo Starting port forward...
-            start /B kubectl port-forward svc/album-db 3306:3306
-            timeout /T 10
-            echo Creating DB...
-            mysql -h 127.0.0.1 -P 3306 -u root --password=root -e "CREATE DATABASE IF NOT EXISTS AlbumViewer;"
-            mysql -h 127.0.0.1 -P 3306 -u root --password=root AlbumViewer < AlbumViewerSqlServerData.sql
+        - powershell: |
+            Write-Host "Iniciando port-forward..."
+            Start-Process -NoNewWindow -FilePath "kubectl" -ArgumentList "port-forward svc/album-db 3306:3306"
+            Start-Sleep -Seconds 10
+
+            Write-Host "Inicializando base de datos..."
+
+            $sqlContent = Get-Content -Raw -Path "AlbumViewerSqlServerData.sql"
+            $command = "mysql -h 127.0.0.1 -P 3306 -u root --password=root AlbumViewer -e `"$sqlContent`""
+            Write-Host "Ejecutando: $command"
+            Invoke-Expression $command
           displayName: "Initialize MySQL with data"
