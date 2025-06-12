@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: albumviewer-service
+  name: album-viewer-service
 spec:
   selector:
     app: albumviewer
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 5000  # o el puerto en que corre tu app .NET Core dentro del contenedor
+      port: 80        # Expuesto en el cluster
+      targetPort: 80  # Puerto interno del contenedor
