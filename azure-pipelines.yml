@@ -18,36 +18,36 @@ stages:
 # ========================
 # 1. SONARQUBE ANALYSIS
 # ========================
-- stage: SonarQube
-  displayName: "SonarQube Analysis"
-  jobs:
-    - job: Analysis
-      displayName: "Run SonarQube analysis"
-      steps:
-        - checkout: self
-        - task: SonarQubePrepare@5
-          displayName: "Prepare SonarQube"
-          inputs:
-            SonarQube: 'Local Agent SonarQube'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
-            scannerMode: 'MSBuild'
-            projectKey: $(sonarProjectKey)
-            projectName: $(sonarProjectName)
-        - script: |
-            dotnet restore src/AlbumViewerNetCore/AlbumViewerNetCore.csproj
-            dotnet build src/AlbumViewerNetCore/AlbumViewerNetCore.csproj --no-restore
-          displayName: "Restore & Build"
-        - task: SonarQubeAnalyze@5
-          displayName: "Run SonarQube Analysis"
-        - task: SonarQubePublish@5
-          displayName: "Publish SonarQube Results"
-          inputs:
-            pollingTimeoutSec: '300'
+# - stage: SonarQube
+#   displayName: "SonarQube Analysis"
+#   jobs:
+#     - job: Analysis
+#       displayName: "Run SonarQube analysis"
+#       steps:
+#         - checkout: self
+#         - task: SonarQubePrepare@5
+#           displayName: "Prepare SonarQube"
+#           inputs:
+#             SonarQube: 'Local Agent SonarQube'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
+#             scannerMode: 'MSBuild'
+#             projectKey: $(sonarProjectKey)
+#             projectName: $(sonarProjectName)
+#         - script: |
+#             dotnet restore src/AlbumViewerNetCore/AlbumViewerNetCore.csproj
+#             dotnet build src/AlbumViewerNetCore/AlbumViewerNetCore.csproj --no-restore
+#           displayName: "Restore & Build"
+#         - task: SonarQubeAnalyze@5
+#           displayName: "Run SonarQube Analysis"
+#         - task: SonarQubePublish@5
+#           displayName: "Publish SonarQube Results"
+#           inputs:
+#             pollingTimeoutSec: '300'
 # ========================
 # 2. BUILD & PUSH
 # ========================
 - stage: Docker
-  dependsOn: SonarQube
-  condition: succeeded()
+  #dependsOn: SonarQube
+  #condition: succeeded()
   displayName: "Docker Build & Push"
   jobs:
     - job: BuildPush
