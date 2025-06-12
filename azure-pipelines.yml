@@ -2,10 +2,8 @@ trigger:
   branches:
     include:
       - main
-
 pool:
   name: Default  # Tu agente autoservido local
-
 variables:
   dockerImage: ic0110/infosyp-prueba
   dockerTag: latest
@@ -18,7 +16,6 @@ variables:
   sonarToken: '$(SONARQUBE_TOKEN)'  # Asegúrate de configurarlo como variable secreta
 
 stages:
-
 # ========================
 # 1. SONARQUBE ANALYSIS
 # ========================
@@ -29,7 +26,6 @@ stages:
       displayName: "Run SonarQube analysis"
       steps:
         - checkout: self
-
         - task: SonarQubePrepare@5
           displayName: "Prepare SonarQube"
           inputs:
@@ -37,15 +33,12 @@ stages:
             scannerMode: 'MSBuild'
             projectKey: $(sonarProjectKey)
             projectName: $(sonarProjectName)
-
         - script: |
             dotnet restore src/AlbumViewerNetCore/AlbumViewerNetCore.csproj
             dotnet build src/AlbumViewerNetCore/AlbumViewerNetCore.csproj --no-restore
           displayName: "Restore & Build"
-
         - task: SonarQubeAnalyze@5
           displayName: "Run SonarQube Analysis"
-
         - task: SonarQubePublish@5
           displayName: "Publish SonarQube Results"
           inputs:
@@ -69,39 +62,12 @@ stages:
             tags: $(dockerTag)
             repository: $(dockerImage)
             buildContext: $(buildContext)
-
         - task: Docker@2
           displayName: "Push to DockerHub"
           inputs:
             command: push
             tags: $(dockerTag)
             repository: $(dockerImage)
-
-# ========================
-# 3. CUSTOM SCRIPTS
-# ========================
-# - stage: CustomScripts
-#   dependsOn: Docker
-#   displayName: "Run CMD Scripts"
-#   jobs:
-#     - job: HelloWorld
-#       displayName: "Hola Mundo 10 veces"
-#       strategy:
-#         parallel: 1
-#       steps:
-#         - script: echo Hola Mundo desde job %AGENT_JOBNAME%
-#           displayName: "Hola Mundo"
-
-#     - job: CreateFiles
-#       displayName: "Crear y mostrar archivos"
-#       steps:
-#         - script: |
-#             mkdir output
-#             for /L %%i in (1,1,1) do (
-#               echo %DATE% %TIME% > output\fecha_%%i.txt
-#             )
-#             type output\*.txt
-#           displayName: "Generar y mostrar archivos con fecha"
 
 # ========================
 # 4. K8S DEPLOY
@@ -116,13 +82,25 @@ stages:
             kubectl apply -f $(k8sYamlPath)
             kubectl get pods -o wide
           displayName: "Apply K8s manifests"
-        
+       
         - script: |
             echo "Waiting for DB pod to be ready..."
-            kubectl wait --for=condition=ready pod -l app=album-db --timeout=60s
+            kubectl wait --for=condition=ready pod -l app=album-db --timeout=120s
           displayName: "Wait for DB readiness"
-
+        
+        # Opción 1: Comando corregido (recomendado)
+        # - script: |
+        #     $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
+        #     echo "Pod name: $POD_NAME"
+        #     kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer < AlbumViewerSqlServerData.sql
+        #   displayName: "Load SQL inside pod - Option 1"
+        
+        # Opción 2: Alternativa con verificación de conexión
         - script: |
-            kubectl exec -i $(kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}") -- \
-              mysql -u root --password=root AlbumViewer < AlbumViewerSqlServerData.sql
+            $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
+            echo "Pod name: $POD_NAME"
+            echo "Testing MySQL connection..."
+            kubectl exec $POD_NAME -- mysql -u root -proot -e "SHOW DATABASES;"
+            echo "Loading SQL data..."
+            kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer < AlbumViewerSqlServerData.sql
           displayName: "Load SQL inside pod"
