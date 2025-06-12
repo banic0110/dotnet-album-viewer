@@ -59,24 +59,7 @@ stages:
   condition: succeeded()
   displayName: "Docker Build & Push"
   jobs:
-    - job: BuildFrontend
-      displayName: "Build Angular Frontend"
-      steps:
-        - checkout: self
-
-        - task: NodeTool@0
-          inputs:
-            versionSpec: '14.x'
-          displayName: "Use Node.js 14"
-
-        - script: |
-            cd src/AlbumViewerAngular
-            npm install
-            npm run build:prod
-          displayName: "Build Angular App"
-
     - job: BuildPush
-      dependsOn: BuildFrontend
       steps:
         - task: Docker@2
           displayName: "Build Docker Image"
