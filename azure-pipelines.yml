@@ -28,7 +28,7 @@ stages:
         - task: SonarQubePrepare@5
           displayName: "Prepare SonarQube"
           inputs:
-            SonarQube: 'Local Agent SonarQube'
+            SonarQube: 'Local Agent SonarQube'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
             scannerMode: 'MSBuild'
             projectKey: $(sonarProjectKey)
             projectName: $(sonarProjectName)
@@ -67,72 +67,40 @@ stages:
             tags: $(dockerTag)
             repository: $(dockerImage)
 # ========================
-# 3. DEPLOY DATABASE FIRST
+# 4. K8S DEPLOY
 # ========================
-- stage: DeployDatabase
+- stage: DeployK8s
   dependsOn: Docker
-  displayName: "Deploy Database"
+  displayName: "Deploy to Minikube"
   jobs:
-    - job: DeployDB
+    - job: ApplyK8s_DB
+      displayName: "Deploy DB and Seed Data"
       steps:
         - script: |
-            echo "Deploying database components..."
-            kubectl apply -f $(k8sYamlPath)mysql-deployment.yaml
-          displayName: "Deploy Database"
+            echo "Applying only DB manifest..."
+            kubectl apply -f $(k8sYamlPath)/album-db.yaml
+          displayName: "Deploy MySQL only"
        
         - script: |
             echo "Waiting for DB pod to be ready..."
-            kubectl wait --for=condition=ready pod -l app=album-db --timeout=300s
+            kubectl wait --for=condition=ready pod -l app=album-db --timeout=120s
           displayName: "Wait for DB readiness"
-       
-        - script: |
-            echo "Verifying database connection..."
-            kubectl exec -l app=album-db -- mysql -u root -proot -e "SHOW DATABASES;"
-          displayName: "Verify DB Connection"
        
         - powershell: |
             $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
             Write-Host "Pod name: $POD_NAME"
+            Write-Host "Testing MySQL connection..."
+            kubectl exec $POD_NAME -- mysql -u root -proot -e "SHOW DATABASES;"
             Write-Host "Loading SQL data..."
             Get-Content AlbumViewerSqlServerData.sql | kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer
-            Write-Host "Verifying data load..."
-            kubectl exec $POD_NAME -- mysql -u root -proot AlbumViewer -e "SELECT COUNT(*) as TableCount FROM information_schema.tables WHERE table_schema = 'AlbumViewer';"
-          displayName: "Load and Verify SQL Data"
-       
-        - script: |
-            echo "Database deployment completed successfully"
-            kubectl get pods -l app=album-db -o wide
-          displayName: "Database Status"
+          displayName: "Seed MySQL Database"
 
-# ========================
-# 4. DEPLOY APPLICATION
-# ========================
-- stage: DeployApp
-  dependsOn: DeployDatabase
-  condition: succeeded()
-  displayName: "Deploy Application"
-  jobs:
-    - job: DeployApplication
+    - job: ApplyK8s_App
+      dependsOn: ApplyK8s_DB
+      displayName: "Deploy Application"
       steps:
         - script: |
-            echo "Deploying application and ingress components..."
-            kubectl apply -f $(k8sYamlPath)app-deployment.yaml
-            kubectl apply -f $(k8sYamlPath)ingress.yaml
-          displayName: "Deploy Application"
-       
-        - script: |
-            echo "Waiting for application to be ready..."
-            kubectl wait --for=condition=ready pod -l app=album-viewer --timeout=300s
-          displayName: "Wait for App readiness"
-       
-        - script: |
-            echo "Testing application connectivity to database..."
-            kubectl exec -l app=album-viewer -- curl -f http://localhost/health || echo "Health check endpoint not available"
-          displayName: "Test App-DB Connection"
-       
-        - script: |
-            echo "Deployment completed successfully"
+            echo "Deploying the application..."
+            kubectl apply -f $(k8sYamlPath)/album-viewer.yaml
             kubectl get pods -o wide
-            kubectl get services
-            echo "Application should now be accessible"
-          displayName: "Final Status"
+          displayName: "Deploy App"
