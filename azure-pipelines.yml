@@ -1,113 +1,138 @@
+trigger:
+  branches:
+    include:
+      - main
+pool:
+  name: Default  # Tu agente autoservido local
+variables:
+  dockerImage: ic0110/infosyp-prueba
+  dockerTag: latest
+  dockerfilePath: docker/app/Dockerfile
+  buildContext: .
+  k8sYamlPath: environment/
+  sonarProjectKey: dotnet-album-viewer
+  sonarProjectName: AlbumViewer
+  sonarHostUrl: 'http://localhost:9000'
+  sonarToken: '$(SONARQUBE_TOKEN)'  # Asegúrate de configurarlo como variable secreta
+stages:
 # ========================
-# 4. K8S DEPLOY (VERSIÓN SIMPLIFICADA)
+# 1. SONARQUBE ANALYSIS
 # ========================
-- stage: DeployK8s
-  dependsOn: Docker
-  displayName: "Deploy to Minikube"
+- stage: SonarQube
+  displayName: "SonarQube Analysis"
   jobs:
-    - job: ApplyK8s
+    - job: Analysis
+      displayName: "Run SonarQube analysis"
       steps:
-        # PASO 1: Desplegar solo la base de datos
-        - powershell: |
-            Write-Host "🗄️ Step 1: Deploying Database..."
-            kubectl apply -f "$(k8sYamlPath)mysql-deployment.yaml"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Failed to deploy database"
-                exit 1
-            }
-          displayName: "Deploy Database Only"
+        - checkout: self
+        - task: SonarQubePrepare@5
+          displayName: "Prepare SonarQube"
+          inputs:
+            SonarQube: 'Local Agent SonarQube'
+            scannerMode: 'MSBuild'
+            projectKey: $(sonarProjectKey)
+            projectName: $(sonarProjectName)
+        - script: |
+            dotnet restore src/AlbumViewerNetCore/AlbumViewerNetCore.csproj
+            dotnet build src/AlbumViewerNetCore/AlbumViewerNetCore.csproj --no-restore
+          displayName: "Restore & Build"
+        - task: SonarQubeAnalyze@5
+          displayName: "Run SonarQube Analysis"
+        - task: SonarQubePublish@5
+          displayName: "Publish SonarQube Results"
+          inputs:
+            pollingTimeoutSec: '300'
+# ========================
+# 2. BUILD & PUSH
+# ========================
+- stage: Docker
+  dependsOn: SonarQube
+  condition: succeeded()
+  displayName: "Docker Build & Push"
+  jobs:
+    - job: BuildPush
+      steps:
+        - task: Docker@2
+          displayName: "Build Docker Image"
+          inputs:
+            command: build
+            Dockerfile: $(dockerfilePath)
+            tags: $(dockerTag)
+            repository: $(dockerImage)
+            buildContext: $(buildContext)
+        - task: Docker@2
+          displayName: "Push to DockerHub"
+          inputs:
+            command: push
+            tags: $(dockerTag)
+            repository: $(dockerImage)
+# ========================
+# 3. DEPLOY DATABASE FIRST
+# ========================
+- stage: DeployDatabase
+  dependsOn: Docker
+  displayName: "Deploy Database"
+  jobs:
+    - job: DeployDB
+      steps:
+        - script: |
+            echo "Deploying database components..."
+            kubectl apply -f $(k8sYamlPath)mysql-deployment.yaml
+          displayName: "Deploy Database"
        
-        # PASO 2: Esperar a que la BD esté lista
-        - powershell: |
-            Write-Host "⏳ Step 2: Waiting for Database to be ready..."
+        - script: |
+            echo "Waiting for DB pod to be ready..."
             kubectl wait --for=condition=ready pod -l app=album-db --timeout=300s
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Database pod failed to become ready"
-                kubectl get pods -l app=album-db
-                kubectl describe pods -l app=album-db
-                exit 1
-            }
-            Write-Host "✅ Database pod is ready"
           displayName: "Wait for DB readiness"
        
-        # PASO 3: Cargar datos
-        - powershell: |
-            Write-Host "📊 Step 3: Loading database data..."
-            $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
-            Write-Host "Database pod: $POD_NAME"
-            
-            # Verificar conexión
-            Write-Host "Testing MySQL connection..."
-            kubectl exec $POD_NAME -- mysql -u root -proot -e "SHOW DATABASES;"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Cannot connect to MySQL"
-                exit 1
-            }
-            
-            # Cargar datos solo si existe el archivo
-            if (Test-Path "AlbumViewerSqlServerData.sql") {
-                Write-Host "Loading SQL data..."
-                Get-Content "AlbumViewerSqlServerData.sql" | kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer
-                
-                # Verificar que se cargaron los datos
-                $tableCount = kubectl exec $POD_NAME -- mysql -u root -proot AlbumViewer -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'AlbumViewer';" -s -N 2>$null
-                Write-Host "Tables loaded: $tableCount"
-                
-                if ($tableCount -gt 0) {
-                    Write-Host "✅ Data loaded successfully"
-                } else {
-                    Write-Warning "⚠️ No tables found after loading"
-                }
-            } else {
-                Write-Warning "SQL file not found, skipping data load"
-            }
-          displayName: "Load SQL Data"
+        - script: |
+            echo "Verifying database connection..."
+            kubectl exec -l app=album-db -- mysql -u root -proot -e "SHOW DATABASES;"
+          displayName: "Verify DB Connection"
        
-        # PASO 4: Desplegar aplicación
         - powershell: |
-            Write-Host "🚀 Step 4: Deploying Application..."
-            kubectl apply -f "$(k8sYamlPath)app-deployment.yaml"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Failed to deploy application"
-                exit 1
-            }
-            Write-Host "✅ Application deployed"
+            $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
+            Write-Host "Pod name: $POD_NAME"
+            Write-Host "Loading SQL data..."
+            Get-Content AlbumViewerSqlServerData.sql | kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer
+            Write-Host "Verifying data load..."
+            kubectl exec $POD_NAME -- mysql -u root -proot AlbumViewer -e "SELECT COUNT(*) as TableCount FROM information_schema.tables WHERE table_schema = 'AlbumViewer';"
+          displayName: "Load and Verify SQL Data"
+       
+        - script: |
+            echo "Database deployment completed successfully"
+            kubectl get pods -l app=album-db -o wide
+          displayName: "Database Status"
+
+# ========================
+# 4. DEPLOY APPLICATION
+# ========================
+- stage: DeployApp
+  dependsOn: DeployDatabase
+  condition: succeeded()
+  displayName: "Deploy Application"
+  jobs:
+    - job: DeployApplication
+      steps:
+        - script: |
+            echo "Deploying application and ingress components..."
+            kubectl apply -f $(k8sYamlPath)app-deployment.yaml
+            kubectl apply -f $(k8sYamlPath)ingress.yaml
           displayName: "Deploy Application"
        
-        # PASO 5: Desplegar ingress
-        - powershell: |
-            Write-Host "🌐 Step 5: Deploying Ingress..."
-            kubectl apply -f "$(k8sYamlPath)ingress.yaml"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Failed to deploy ingress"
-                exit 1
-            }
-            Write-Host "✅ Ingress deployed"
-          displayName: "Deploy Ingress"
+        - script: |
+            echo "Waiting for application to be ready..."
+            kubectl wait --for=condition=ready pod -l app=album-viewer --timeout=300s
+          displayName: "Wait for App readiness"
        
-        # PASO 6: Verificar que todo esté listo
-        - powershell: |
-            Write-Host "🔍 Step 6: Final verification..."
-            
-            # Esperar a que la aplicación esté lista
-            Write-Host "Waiting for application pod..."
-            kubectl wait --for=condition=ready pod -l app=album-viewer --timeout=180s
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Application is ready!"
-            } else {
-                Write-Warning "⚠️ Application might not be fully ready yet"
-                # Mostrar estado para debugging
-                kubectl get pods -l app=album-viewer
-                $APP_POD = kubectl get pods -l app=album-viewer -o jsonpath="{.items[0].metadata.name}" 2>$null
-                if (![string]::IsNullOrEmpty($APP_POD)) {
-                    Write-Host "Last 10 lines of application logs:"
-                    kubectl logs $APP_POD --tail=10
-                }
-            }
-            
-            Write-Host "`n🎉 Deployment Summary:"
-            Write-Host "===================="
-            kubectl get pods,services,ingress
-            Write-Host "`n✅ Pipeline completed!"
-          displayName: "Final Verification"
+        - script: |
+            echo "Testing application connectivity to database..."
+            kubectl exec -l app=album-viewer -- curl -f http://localhost/health || echo "Health check endpoint not available"
+          displayName: "Test App-DB Connection"
+       
+        - script: |
+            echo "Deployment completed successfully"
+            kubectl get pods -o wide
+            kubectl get services
+            echo "Application should now be accessible"
+          displayName: "Final Status"
