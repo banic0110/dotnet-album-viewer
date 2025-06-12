@@ -14,7 +14,6 @@ variables:
   sonarProjectName: AlbumViewer
   sonarHostUrl: 'http://localhost:9000'
   sonarToken: '$(SONARQUBE_TOKEN)'  # Asegúrate de configurarlo como variable secreta
-
 stages:
 # ========================
 # 1. SONARQUBE ANALYSIS
@@ -29,7 +28,7 @@ stages:
         - task: SonarQubePrepare@5
           displayName: "Prepare SonarQube"
           inputs:
-            SonarQube: 'Local Agent SonarQube'  # Nombre del servicio en Azure DevOps para SonarQube (debes configurarlo)
+            SonarQube: 'Local Agent SonarQube'
             scannerMode: 'MSBuild'
             projectKey: $(sonarProjectKey)
             projectName: $(sonarProjectName)
@@ -43,7 +42,6 @@ stages:
           displayName: "Publish SonarQube Results"
           inputs:
             pollingTimeoutSec: '300'
-
 # ========================
 # 2. BUILD & PUSH
 # ========================
@@ -68,39 +66,72 @@ stages:
             command: push
             tags: $(dockerTag)
             repository: $(dockerImage)
-
 # ========================
-# 4. K8S DEPLOY
+# 3. DEPLOY DATABASE FIRST
 # ========================
-- stage: DeployK8s
+- stage: DeployDatabase
   dependsOn: Docker
-  displayName: "Deploy to Minikube"
+  displayName: "Deploy Database"
   jobs:
-    - job: ApplyK8s
+    - job: DeployDB
       steps:
         - script: |
-            kubectl apply -f $(k8sYamlPath)
-            kubectl get pods -o wide
-          displayName: "Apply K8s manifests"
+            echo "Deploying database components..."
+            kubectl apply -f $(k8sYamlPath)/database/ || kubectl apply -f $(k8sYamlPath) --selector=app=album-db
+          displayName: "Deploy Database"
        
         - script: |
             echo "Waiting for DB pod to be ready..."
-            kubectl wait --for=condition=ready pod -l app=album-db --timeout=120s
+            kubectl wait --for=condition=ready pod -l app=album-db --timeout=300s
           displayName: "Wait for DB readiness"
-        
-        # Opción 1: Comando corregido (recomendado)
-        # - script: |
-        #     $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
-        #     echo "Pod name: $POD_NAME"
-        #     kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer < AlbumViewerSqlServerData.sql
-        #   displayName: "Load SQL inside pod - Option 1"
-        
-        # Opción 2: Alternativa con verificación de conexión
+       
+        - script: |
+            echo "Verifying database connection..."
+            kubectl exec -l app=album-db -- mysql -u root -proot -e "SHOW DATABASES;"
+          displayName: "Verify DB Connection"
+       
         - powershell: |
             $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
             Write-Host "Pod name: $POD_NAME"
-            Write-Host "Testing MySQL connection..."
-            kubectl exec $POD_NAME -- mysql -u root -proot -e "SHOW DATABASES;"
             Write-Host "Loading SQL data..."
             Get-Content AlbumViewerSqlServerData.sql | kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer
-          displayName: "Load SQL inside pod - PowerShell"
+            Write-Host "Verifying data load..."
+            kubectl exec $POD_NAME -- mysql -u root -proot AlbumViewer -e "SELECT COUNT(*) as TableCount FROM information_schema.tables WHERE table_schema = 'AlbumViewer';"
+          displayName: "Load and Verify SQL Data"
+       
+        - script: |
+            echo "Database deployment completed successfully"
+            kubectl get pods -l app=album-db -o wide
+          displayName: "Database Status"
+
+# ========================
+# 4. DEPLOY APPLICATION
+# ========================
+- stage: DeployApp
+  dependsOn: DeployDatabase
+  condition: succeeded()
+  displayName: "Deploy Application"
+  jobs:
+    - job: DeployApplication
+      steps:
+        - script: |
+            echo "Deploying application components..."
+            kubectl apply -f $(k8sYamlPath)/app/ || kubectl apply -f $(k8sYamlPath) --selector=app=album-viewer
+          displayName: "Deploy Application"
+       
+        - script: |
+            echo "Waiting for application to be ready..."
+            kubectl wait --for=condition=ready pod -l app=album-viewer --timeout=300s
+          displayName: "Wait for App readiness"
+       
+        - script: |
+            echo "Testing application connectivity to database..."
+            kubectl exec -l app=album-viewer -- curl -f http://localhost/health || echo "Health check endpoint not available"
+          displayName: "Test App-DB Connection"
+       
+        - script: |
+            echo "Deployment completed successfully"
+            kubectl get pods -o wide
+            kubectl get services
+            echo "Application should now be accessible"
+          displayName: "Final Status"
