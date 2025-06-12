@@ -78,7 +78,7 @@ stages:
       steps:
         - script: |
             echo "Applying only DB manifest..."
-            kubectl apply -f $(k8sYamlPath)/album-db.yaml
+            kubectl apply -f $(k8sYamlPath)/mysql-deployment.yaml
           displayName: "Deploy MySQL only"
        
         - script: |
