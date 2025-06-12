@@ -31,5 +31,6 @@ spec:
   selector:
     app: album-viewer
   ports:
-    - port: 80
-      targetPort: 80
+    - protocol: TCP
+      port: 80        # Puerto que expone el servicio
+      targetPort: 80  # Puerto donde escucha el contenedor

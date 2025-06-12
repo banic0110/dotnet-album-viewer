@@ -1,36 +1,18 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: album-db
+  name: album-viewer-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: album-db
-  template:
-    metadata:
-      labels:
-        app: album-db
-    spec:
-      containers:
-        - name: album-db
-          image: mysql:5.7
-          ports:
-            - containerPort: 3306
-          env:
-            - name: MYSQL_ROOT_PASSWORD
-              value: root
-            - name: MYSQL_DATABASE
-              value: AlbumViewer
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: album-db
-spec:
-  selector:
-    app: album-db
-  ports:
-    - protocol: TCP
-      port: 3306
-      targetPort: 3306
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /album-viewer
+            pathType: Prefix
+            backend:
+              service:
+                name: album-viewer-service
+                port:
+                  number: 80
