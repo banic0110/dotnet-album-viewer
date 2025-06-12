@@ -100,6 +100,8 @@ stages:
       displayName: "Deploy Application"
       steps:
         - script: |
+            echo "Cleaning up old resources..."
+            kubectl delete -f environment/ --ignore-not-found=true
             echo "Deploying the application..."
             kubectl apply -f $(k8sYamlPath)/album-viewer.yaml
             kubectl get pods -o wide
