@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: album-viewer
-          image: isaiascruz/album-viewer:latest
+          image: ic0110/infosyp-prueba:latest
           ports:
             - containerPort: 80
           env:
