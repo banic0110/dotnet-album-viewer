@@ -128,8 +128,8 @@ stages:
             sleep 5  # Esperar a que se abra el túnel
 
             echo "Creating database if not exists..."
-            mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS AlbumViewer;"
+            mysql -h 127.0.0.1 -P 3306 -u root --password=root -e "CREATE DATABASE IF NOT EXISTS AlbumViewer;"
 
             echo "Importing AlbumViewerSqlServerData.sql..."
-            mysql -h 127.0.0.1 -P 3306 -u root AlbumViewer < AlbumViewerSqlServerData.sql
+            mysql -h 127.0.0.1 -P 3306 -u root --password=root AlbumViewer < AlbumViewerSqlServerData.sql
           displayName: "Initialize MySQL with data"
