@@ -96,11 +96,8 @@ stages:
         #   displayName: "Load SQL inside pod - Option 1"
         
         # Opción 2: Alternativa con verificación de conexión
-        - script: |
+        - powershell: |
             $POD_NAME = kubectl get pods -l app=album-db -o jsonpath="{.items[0].metadata.name}"
-            echo "Pod name: $POD_NAME"
-            echo "Testing MySQL connection..."
-            kubectl exec $POD_NAME -- mysql -u root -proot -e "SHOW DATABASES;"
-            echo "Loading SQL data..."
+            Write-Host "Pod name: $POD_NAME"
             kubectl exec -i $POD_NAME -- mysql -u root -proot AlbumViewer < AlbumViewerSqlServerData.sql
-          displayName: "Load SQL inside pod"
+          displayName: "Load SQL inside pod - PowerShell"
