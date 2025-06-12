@@ -123,13 +123,10 @@ stages:
           displayName: "Wait for DB readiness"
 
         - script: |
-            echo "Forwarding MySQL port..."
-            kubectl port-forward svc/album-db 3306:3306 &
-            sleep 5  # Esperar a que se abra el túnel
-
-            echo "Creating database if not exists..."
+            echo Starting port forward...
+            start /B kubectl port-forward svc/album-db 3306:3306
+            timeout /T 10
+            echo Creating DB...
             mysql -h 127.0.0.1 -P 3306 -u root --password=root -e "CREATE DATABASE IF NOT EXISTS AlbumViewer;"
-
-            echo "Importing AlbumViewerSqlServerData.sql..."
             mysql -h 127.0.0.1 -P 3306 -u root --password=root AlbumViewer < AlbumViewerSqlServerData.sql
           displayName: "Initialize MySQL with data"
